@@ -1,0 +1,12 @@
+# Build output
+bin/
+
+# Environment files
+.env
+.env.local
+
+# Go test binaries
+*.test
+
+# Generated protobuf files
+**/*.pb.go
