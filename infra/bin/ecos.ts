@@ -6,6 +6,7 @@ import { AuthStack } from '../lib/auth-stack';
 import { MessagingStack } from '../lib/messaging-stack';
 import { ComputeStack } from '../lib/compute-stack';
 import { ApiStack } from '../lib/api-stack';
+import { IngestionServiceStack } from '../lib/ingestion-service-stack';
 import { FrontendStack } from '../lib/frontend-stack';
 import { CacheStack } from '../lib/cache-stack';
 
@@ -40,12 +41,27 @@ const cacheStack = new CacheStack(app, 'EcosCache', {
   cacheSecurityGroup: networkStack.cacheSecurityGroup,
 });
 
-// Depends on: auth, compute
+// Depends on: network, compute, database, messaging
+const ingestionServiceStack = new IngestionServiceStack(app, 'EcosIngestionService', {
+  env,
+  vpc: networkStack.vpc,
+  ecsSecurityGroup: networkStack.ecsSecurityGroup,
+  cluster: computeStack.cluster,
+  ingestionLogGroup: computeStack.ingestionLogGroup,
+  sensorReadingsTable: databaseStack.sensorReadingsTable,
+  stationsTable: databaseStack.stationsTable,
+  dataIngestionTopic: messagingStack.dataIngestionTopic,
+  alertEventsTopic: messagingStack.alertEventsTopic,
+});
+
+// Depends on: auth, network, ingestion service
 const apiStack = new ApiStack(app, 'EcosApi', {
   env,
   userPool: authStack.userPool,
   userPoolClient: authStack.userPoolClient,
-  cluster: computeStack.cluster,
+  vpc: networkStack.vpc,
+  ecsSecurityGroup: networkStack.ecsSecurityGroup,
+  ingestionService: ingestionServiceStack.service,
 });
 
 app.synth();

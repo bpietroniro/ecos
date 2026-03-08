@@ -10,6 +10,7 @@ interface ComputeStackProps extends cdk.StackProps {
 
 export class ComputeStack extends cdk.Stack {
   public readonly cluster: ecs.Cluster;
+  public readonly ingestionLogGroup: logs.LogGroup;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
@@ -19,8 +20,12 @@ export class ComputeStack extends cdk.Stack {
       vpc: props.vpc,
     });
 
-    // CloudWatch log groups for future services
-    new logs.LogGroup(this, 'IngestionServiceLogs', {
+    this.cluster.addDefaultCloudMapNamespace({
+      name: 'ecos.local',
+    });
+
+    // CloudWatch log groups for services
+    this.ingestionLogGroup = new logs.LogGroup(this, 'IngestionServiceLogs', {
       logGroupName: '/ecos/ingestion-service',
       retention: logs.RetentionDays.TWO_WEEKS,
       removalPolicy: cdk.RemovalPolicy.DESTROY,

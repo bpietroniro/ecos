@@ -1,13 +1,16 @@
 import * as cdk from 'aws-cdk-lib';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import { Construct } from 'constructs';
 
 interface ApiStackProps extends cdk.StackProps {
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
-  cluster: ecs.Cluster;
+  vpc: ec2.Vpc;
+  ecsSecurityGroup: ec2.SecurityGroup;
+  ingestionService: ecs.FargateService;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -47,34 +50,51 @@ export class ApiStack extends cdk.Stack {
       autoDeploy: true,
     });
 
-    // Route stubs — these will be connected to real integrations
-    // when the Go/Python services are deployed to ECS
-
-    // Mock integration for placeholder routes
-    const mockIntegration = new apigatewayv2.CfnIntegration(this, 'MockIntegration', {
-      apiId: this.api.ref,
-      integrationType: 'HTTP_PROXY',
-      integrationMethod: 'GET',
-      // Placeholder URI — will be replaced with ECS service ALB
-      integrationUri: 'https://httpbin.org/anything',
+    // VPC Link for private integration with ECS
+    const vpcLink = new apigatewayv2.CfnVpcLink(this, 'VpcLink', {
+      name: 'ecos-vpc-link',
+      subnetIds: props.vpc.publicSubnets.map(s => s.subnetId),
+      securityGroupIds: [props.ecsSecurityGroup.securityGroupId],
     });
 
-    const routes = [
-      { path: '/api/readings', methods: ['GET', 'POST'] },
-      { path: '/api/stations', methods: ['GET', 'POST'] },
-      { path: '/api/analysis', methods: ['GET', 'POST'] },
+    // Integration to ingestion service via Cloud Map service discovery
+    const ingestionIntegration = new apigatewayv2.CfnIntegration(this, 'IngestionIntegration', {
+      apiId: this.api.ref,
+      integrationType: 'HTTP_PROXY',
+      integrationMethod: 'ANY',
+      connectionType: 'VPC_LINK',
+      connectionId: vpcLink.ref,
+      integrationUri: props.ingestionService.cloudMapService!.serviceArn,
+    });
+
+    // Routes — health check (no auth)
+    new apigatewayv2.CfnRoute(this, 'Route-GET-healthz', {
+      apiId: this.api.ref,
+      routeKey: 'GET /healthz',
+      target: `integrations/${ingestionIntegration.ref}`,
+    });
+
+    // Routes — ingestion service (JWT auth)
+    const authedRoutes = [
+      'GET /api/readings',
+      'GET /api/readings/station/{stationId}',
+      'POST /api/readings',
+      'POST /api/readings/batch',
+      'GET /api/stations',
+      'POST /api/stations',
+      'PUT /api/stations/{id}',
+      'DELETE /api/stations/{id}',
     ];
 
-    for (const route of routes) {
-      for (const method of route.methods) {
-        new apigatewayv2.CfnRoute(this, `Route-${method}-${route.path.replace(/\//g, '-')}`, {
-          apiId: this.api.ref,
-          routeKey: `${method} ${route.path}`,
-          authorizationType: 'JWT',
-          authorizerId: authorizer.ref,
-          target: `integrations/${mockIntegration.ref}`,
-        });
-      }
+    for (const routeKey of authedRoutes) {
+      const routeId = routeKey.replace(/[\s\/\{\}]/g, '-');
+      new apigatewayv2.CfnRoute(this, `Route-${routeId}`, {
+        apiId: this.api.ref,
+        routeKey,
+        authorizationType: 'JWT',
+        authorizerId: authorizer.ref,
+        target: `integrations/${ingestionIntegration.ref}`,
+      });
     }
 
     this.apiEndpoint = `https://${this.api.ref}.execute-api.${this.region}.amazonaws.com`;
