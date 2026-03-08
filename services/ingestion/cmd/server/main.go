@@ -12,6 +12,7 @@ import (
 	"github.com/ecos/ingestion/internal/api"
 	"github.com/ecos/ingestion/internal/config"
 	"github.com/ecos/ingestion/internal/events"
+	"github.com/ecos/ingestion/internal/poller"
 	"github.com/ecos/ingestion/internal/store"
 )
 
@@ -41,6 +42,33 @@ func main() {
 	// Publisher.
 	publisher := events.NewPublisher(snsClient, cfg.DataIngestionTopicARN, cfg.AlertEventsTopicARN)
 
+	// Poller (optional).
+	var pollerCancel context.CancelFunc
+	if cfg.PollEnabled {
+		var providers []poller.Provider
+
+		if cfg.NOAAEnabled && len(cfg.NOAAStationIDs) > 0 {
+			providers = append(providers,
+				poller.NewNOAAProvider(cfg.NOAABaseURL, cfg.NOAAUserAgent, cfg.NOAAStationIDs))
+			slog.Info("noaa provider enabled", "stations", cfg.NOAAStationIDs)
+		}
+
+		if cfg.OWMEnabled && cfg.OWMAPIKey != "" {
+			providers = append(providers,
+				poller.NewOWMProvider(cfg.OWMBaseURL, cfg.OWMAPIKey, cfg.OWMLocations))
+			slog.Info("owm provider enabled", "locations", len(cfg.OWMLocations))
+		}
+
+		if len(providers) > 0 {
+			pollerCtx, cancel := context.WithCancel(context.Background())
+			pollerCancel = cancel
+			p := poller.New(providers, readingsStore, stationsStore, publisher, cfg.PollInterval)
+			go p.Run(pollerCtx)
+		} else {
+			slog.Warn("polling enabled but no providers configured")
+		}
+	}
+
 	// Router.
 	router := api.NewRouter(readingsStore, stationsStore, publisher)
 
@@ -66,7 +94,12 @@ func main() {
 	}()
 
 	<-shutdown
-	slog.Info("shutting down server...")
+	slog.Info("shutting down...")
+
+	// Stop poller first.
+	if pollerCancel != nil {
+		pollerCancel()
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
