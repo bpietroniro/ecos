@@ -46,6 +46,7 @@ type SensorReading struct {
 	ID          string            `json:"id" dynamodbav:"id"`
 	StationID   string            `json:"stationId" dynamodbav:"stationId"`
 	Timestamp   string            `json:"timestamp" dynamodbav:"timestamp"`
+	SortKey     string            `json:"-" dynamodbav:"sk"`
 	ReadingType ReadingType       `json:"readingType" dynamodbav:"readingType"`
 	Value       float64           `json:"value" dynamodbav:"value"`
 	Unit        string            `json:"unit" dynamodbav:"unit"`

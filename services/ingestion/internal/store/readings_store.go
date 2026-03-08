@@ -37,6 +37,7 @@ func NewReadingsStore(client *dynamodb.Client, tableName, indexName string) Read
 }
 
 func (s *readingsStore) Put(ctx context.Context, reading model.SensorReading) error {
+	reading.SortKey = reading.Timestamp + "#" + reading.ID
 	item, err := attributevalue.MarshalMap(reading)
 	if err != nil {
 		return fmt.Errorf("marshal reading: %w", err)
@@ -55,7 +56,7 @@ func (s *readingsStore) Put(ctx context.Context, reading model.SensorReading) er
 
 func (s *readingsStore) GetByStation(ctx context.Context, stationID string, q model.ReadingsQuery) ([]model.SensorReading, error) {
 	keyCondition := expression.Key("stationId").Equal(expression.Value(stationID))
-	keyCondition = applyTimestampCondition(keyCondition, q)
+	keyCondition = applySortKeyCondition(keyCondition, q)
 
 	expr, err := expression.NewBuilder().WithKeyCondition(keyCondition).Build()
 	if err != nil {
@@ -78,7 +79,7 @@ func (s *readingsStore) GetByStation(ctx context.Context, stationID string, q mo
 
 func (s *readingsStore) GetByReadingType(ctx context.Context, readingType model.ReadingType, q model.ReadingsQuery) ([]model.SensorReading, error) {
 	keyCondition := expression.Key("readingType").Equal(expression.Value(string(readingType)))
-	keyCondition = applyTimestampCondition(keyCondition, q)
+	keyCondition = applySortKeyCondition(keyCondition, q)
 
 	expr, err := expression.NewBuilder().WithKeyCondition(keyCondition).Build()
 	if err != nil {
@@ -146,21 +147,21 @@ func (s *readingsStore) query(ctx context.Context, input *dynamodb.QueryInput) (
 	return readings, nil
 }
 
-func applyTimestampCondition(kc expression.KeyConditionBuilder, q model.ReadingsQuery) expression.KeyConditionBuilder {
+func applySortKeyCondition(kc expression.KeyConditionBuilder, q model.ReadingsQuery) expression.KeyConditionBuilder {
 	if q.StartTime != nil && q.EndTime != nil {
-		return kc.And(expression.Key("timestamp").Between(
+		return kc.And(expression.Key("sk").Between(
 			expression.Value(q.StartTime.Format("2006-01-02T15:04:05Z07:00")),
-			expression.Value(q.EndTime.Format("2006-01-02T15:04:05Z07:00")),
+			expression.Value(q.EndTime.Format("2006-01-02T15:04:05Z07:00")+"~"),
 		))
 	}
 	if q.StartTime != nil {
-		return kc.And(expression.Key("timestamp").GreaterThanEqual(
+		return kc.And(expression.Key("sk").GreaterThanEqual(
 			expression.Value(q.StartTime.Format("2006-01-02T15:04:05Z07:00")),
 		))
 	}
 	if q.EndTime != nil {
-		return kc.And(expression.Key("timestamp").LessThanEqual(
-			expression.Value(q.EndTime.Format("2006-01-02T15:04:05Z07:00")),
+		return kc.And(expression.Key("sk").LessThanEqual(
+			expression.Value(q.EndTime.Format("2006-01-02T15:04:05Z07:00")+"~"),
 		))
 	}
 	return kc

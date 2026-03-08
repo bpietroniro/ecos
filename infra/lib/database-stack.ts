@@ -19,7 +19,7 @@ export class DatabaseStack extends cdk.Stack {
     this.sensorReadingsTable = new dynamodb.Table(this, 'SensorReadings', {
       tableName: 'ecos-sensor-readings',
       partitionKey: { name: 'stationId', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
@@ -27,7 +27,7 @@ export class DatabaseStack extends cdk.Stack {
     this.sensorReadingsTable.addGlobalSecondaryIndex({
       indexName: 'byReadingType',
       partitionKey: { name: 'readingType', type: dynamodb.AttributeType.STRING },
-      sortKey: { name: 'timestamp', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'sk', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
 

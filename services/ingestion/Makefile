@@ -34,13 +34,13 @@ dynamo-setup:
 		--table-name ecos-sensor-readings \
 		--attribute-definitions \
 			AttributeName=stationId,AttributeType=S \
-			AttributeName=timestamp,AttributeType=S \
+			AttributeName=sk,AttributeType=S \
 			AttributeName=readingType,AttributeType=S \
 		--key-schema \
 			AttributeName=stationId,KeyType=HASH \
-			AttributeName=timestamp,KeyType=RANGE \
+			AttributeName=sk,KeyType=RANGE \
 		--global-secondary-indexes \
-			'[{"IndexName":"byReadingType","KeySchema":[{"AttributeName":"readingType","KeyType":"HASH"},{"AttributeName":"timestamp","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"}}]' \
+			'[{"IndexName":"byReadingType","KeySchema":[{"AttributeName":"readingType","KeyType":"HASH"},{"AttributeName":"sk","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"}}]' \
 		--billing-mode PAY_PER_REQUEST \
 		--no-cli-pager
 	aws dynamodb create-table \

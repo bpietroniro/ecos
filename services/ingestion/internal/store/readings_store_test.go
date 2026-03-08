@@ -33,8 +33,8 @@ func TestReadingsStore_MarshalRoundTrip(t *testing.T) {
 	if item["stationId"] == nil {
 		t.Error("expected stationId attribute")
 	}
-	if item["timestamp"] == nil {
-		t.Error("expected timestamp attribute")
+	if item["sk"] == nil {
+		t.Error("expected sk attribute")
 	}
 	if item["readingType"] == nil {
 		t.Error("expected readingType attribute")
@@ -62,11 +62,11 @@ func TestReadingsStore_MarshalRoundTrip(t *testing.T) {
 	}
 }
 
-func TestApplyTimestampCondition(t *testing.T) {
+func TestApplySortKeyCondition(t *testing.T) {
 	base := expression.Key("stationId").Equal(expression.Value("test"))
 
 	// No time filters.
-	result := applyTimestampCondition(base, model.ReadingsQuery{})
+	result := applySortKeyCondition(base, model.ReadingsQuery{})
 	_, err := expression.NewBuilder().WithKeyCondition(result).Build()
 	if err != nil {
 		t.Fatalf("no filters: %v", err)
@@ -74,7 +74,7 @@ func TestApplyTimestampCondition(t *testing.T) {
 
 	// Start time only.
 	start := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-	result = applyTimestampCondition(base, model.ReadingsQuery{StartTime: &start})
+	result = applySortKeyCondition(base, model.ReadingsQuery{StartTime: &start})
 	_, err = expression.NewBuilder().WithKeyCondition(result).Build()
 	if err != nil {
 		t.Fatalf("start only: %v", err)
@@ -82,14 +82,14 @@ func TestApplyTimestampCondition(t *testing.T) {
 
 	// End time only.
 	end := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
-	result = applyTimestampCondition(base, model.ReadingsQuery{EndTime: &end})
+	result = applySortKeyCondition(base, model.ReadingsQuery{EndTime: &end})
 	_, err = expression.NewBuilder().WithKeyCondition(result).Build()
 	if err != nil {
 		t.Fatalf("end only: %v", err)
 	}
 
 	// Both.
-	result = applyTimestampCondition(base, model.ReadingsQuery{StartTime: &start, EndTime: &end})
+	result = applySortKeyCondition(base, model.ReadingsQuery{StartTime: &start, EndTime: &end})
 	_, err = expression.NewBuilder().WithKeyCondition(result).Build()
 	if err != nil {
 		t.Fatalf("both: %v", err)
