@@ -16,8 +16,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    outputs:
-      ecr-repository: ${{ steps.outputs.outputs.ecr-repository }}
     defaults:
       run:
         working-directory: infra
@@ -43,12 +41,7 @@ jobs:
         run: npm run build
 
       - name: CDK deploy ECR stack
-        run: npx cdk deploy EcosIngestionEcr --require-approval never --outputs-file cdk-outputs.json
-
-      - name: Extract stack outputs
-        id: outputs
-        run: |
-          echo "ecr-repository=$(jq -r '.EcosIngestionEcr.IngestionRepositoryUri' cdk-outputs.json)" >> "$GITHUB_OUTPUT"
+        run: npx cdk deploy EcosIngestionEcr --require-approval never
 
   build-and-push:
     name: Build & Push Ingestion Image
@@ -70,10 +63,17 @@ jobs:
       - name: Log in to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push
-        env:
-          IMAGE_URI: ${{ needs.deploy-ecr.outputs.ecr-repository }}
+      - name: Get ECR URI
+        id: ecr
         run: |
+          echo "uri=$(aws ecr describe-repositories \
+            --repository-names ecos-ingestion \
+            --query 'repositories[0].repositoryUri' \
+            --output text)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        run: |
+          IMAGE_URI="${{ steps.ecr.outputs.uri }}"
           docker build \
             -t "$IMAGE_URI:${{ github.sha }}" \
             -t "$IMAGE_URI:latest" \
