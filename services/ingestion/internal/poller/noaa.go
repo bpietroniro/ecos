@@ -190,6 +190,8 @@ func noaaUnit(unitCode string) string {
 	switch unitCode {
 	case "wmoUnit:degC":
 		return "celsius"
+	case "wmoUnit:m_s-1":
+		return "m/s"
 	case "wmoUnit:km_h-1":
 		return "km/h"
 	case "wmoUnit:degree_(angle)":
