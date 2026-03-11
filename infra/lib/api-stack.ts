@@ -44,7 +44,7 @@ export class ApiStack extends cdk.Stack {
     });
 
     // Default stage with auto-deploy
-    const stage = new apigatewayv2.CfnStage(this, 'DefaultStage', {
+    new apigatewayv2.CfnStage(this, 'DefaultStage', {
       apiId: this.api.ref,
       stageName: '$default',
       autoDeploy: true,
@@ -65,6 +65,7 @@ export class ApiStack extends cdk.Stack {
       connectionType: 'VPC_LINK',
       connectionId: vpcLink.ref,
       integrationUri: props.ingestionService.cloudMapService!.serviceArn,
+      payloadFormatVersion: '1.0',
     });
 
     // Routes — health check (no auth)

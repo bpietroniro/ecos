@@ -16,30 +16,24 @@ interface IngestionServiceStackProps extends cdk.StackProps {
   stationsTable: dynamodb.Table;
   dataIngestionTopic: sns.Topic;
   alertEventsTopic: sns.Topic;
+  repository: ecr.Repository;
 }
 
 export class IngestionServiceStack extends cdk.Stack {
   public readonly service: ecs.FargateService;
-  public readonly repository: ecr.Repository;
 
   constructor(scope: Construct, id: string, props: IngestionServiceStackProps) {
     super(scope, id, props);
-
-    this.repository = new ecr.Repository(this, 'IngestionRepository', {
-      repositoryName: 'ecos-ingestion',
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-      lifecycleRules: [{ maxImageCount: 10 }],
-    });
 
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'IngestionTaskDef', {
       cpu: 256,
       memoryLimitMiB: 512,
     });
 
-    this.repository.grantPull(taskDefinition.taskRole);
+    props.repository.grantPull(taskDefinition.taskRole);
 
     taskDefinition.addContainer('ingestion', {
-      image: ecs.ContainerImage.fromEcrRepository(this.repository, 'latest'),
+      image: ecs.ContainerImage.fromEcrRepository(props.repository, 'latest'),
       portMappings: [{ containerPort: 8080 }],
       environment: {
         READINGS_TABLE_NAME: props.sensorReadingsTable.tableName,
@@ -79,10 +73,7 @@ export class IngestionServiceStack extends cdk.Stack {
       cloudMapOptions: {
         name: 'ingestion',
       },
-    });
-
-    new cdk.CfnOutput(this, 'IngestionRepositoryUri', {
-      value: this.repository.repositoryUri,
+      circuitBreaker: { rollback: false },
     });
 
     new cdk.CfnOutput(this, 'IngestionClusterName', {

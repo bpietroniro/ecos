@@ -6,9 +6,8 @@ import { AuthStack } from '../lib/auth-stack';
 import { MessagingStack } from '../lib/messaging-stack';
 import { ComputeStack } from '../lib/compute-stack';
 import { ApiStack } from '../lib/api-stack';
+import { IngestionEcrStack } from '../lib/ingestion-ecr-stack';
 import { IngestionServiceStack } from '../lib/ingestion-service-stack';
-import { FrontendStack } from '../lib/frontend-stack';
-import { CacheStack } from '../lib/cache-stack';
 
 const app = new cdk.App();
 
@@ -21,7 +20,7 @@ const env = {
 const networkStack = new NetworkStack(app, 'EcosNetwork', { env });
 const authStack = new AuthStack(app, 'EcosAuth', { env });
 const messagingStack = new MessagingStack(app, 'EcosMessaging', { env });
-const frontendStack = new FrontendStack(app, 'EcosFrontend', { env });
+// const frontendStack = new FrontendStack(app, 'EcosFrontend', { env });
 
 // Depends on: network
 const databaseStack = new DatabaseStack(app, 'EcosDatabase', {
@@ -35,13 +34,15 @@ const computeStack = new ComputeStack(app, 'EcosCompute', {
   vpc: networkStack.vpc,
 });
 
-const cacheStack = new CacheStack(app, 'EcosCache', {
-  env,
-  vpc: networkStack.vpc,
-  cacheSecurityGroup: networkStack.cacheSecurityGroup,
-});
+// const cacheStack = new CacheStack(app, 'EcosCache', {
+//   env,
+//   vpc: networkStack.vpc,
+//   cacheSecurityGroup: networkStack.cacheSecurityGroup,
+// });
 
-// Depends on: network, compute, database, messaging
+const ingestionEcrStack = new IngestionEcrStack(app, 'EcosIngestionEcr', { env });
+
+// Depends on: network, compute, database, messaging, ECR
 const ingestionServiceStack = new IngestionServiceStack(app, 'EcosIngestionService', {
   env,
   vpc: networkStack.vpc,
@@ -52,6 +53,7 @@ const ingestionServiceStack = new IngestionServiceStack(app, 'EcosIngestionServi
   stationsTable: databaseStack.stationsTable,
   dataIngestionTopic: messagingStack.dataIngestionTopic,
   alertEventsTopic: messagingStack.alertEventsTopic,
+  repository: ingestionEcrStack.repository,
 });
 
 // Depends on: auth, network, ingestion service
