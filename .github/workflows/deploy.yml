@@ -1,0 +1,89 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write  # required for OIDC
+  contents: read
+
+jobs:
+  deploy-infra:
+    name: CDK Deploy
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      ecr-repository: ${{ steps.outputs.outputs.ecr-repository }}
+      cluster-name: ${{ steps.outputs.outputs.cluster-name }}
+      service-name: ${{ steps.outputs.outputs.service-name }}
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (TypeScript)
+        run: npm run build
+
+      # --no-rollback ensures the ECR repo is created even if ECS can't start yet
+      # (expected on first deploy before any image has been pushed)
+      - name: CDK deploy
+        run: npx cdk deploy --all --require-approval never --no-rollback --outputs-file cdk-outputs.json
+
+      - name: Extract stack outputs
+        id: outputs
+        run: |
+          echo "ecr-repository=$(jq -r '.EcosIngestionService.IngestionRepositoryUri' cdk-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "cluster-name=$(jq -r '.EcosIngestionService.IngestionClusterName' cdk-outputs.json)" >> "$GITHUB_OUTPUT"
+          echo "service-name=$(jq -r '.EcosIngestionService.IngestionServiceName' cdk-outputs.json)" >> "$GITHUB_OUTPUT"
+
+  build-and-push:
+    name: Build & Push Ingestion Image
+    runs-on: ubuntu-latest
+    needs: deploy-infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        env:
+          IMAGE_URI: ${{ needs.deploy-infra.outputs.ecr-repository }}
+        run: |
+          docker build \
+            -t "$IMAGE_URI:${{ github.sha }}" \
+            -t "$IMAGE_URI:latest" \
+            services/ingestion
+          docker push "$IMAGE_URI:${{ github.sha }}"
+          docker push "$IMAGE_URI:latest"
+
+      - name: Force ECS redeployment
+        run: |
+          aws ecs update-service \
+            --cluster "${{ needs.deploy-infra.outputs.cluster-name }}" \
+            --service "${{ needs.deploy-infra.outputs.service-name }}" \
+            --force-new-deployment \
+            --region "${{ secrets.AWS_REGION }}"

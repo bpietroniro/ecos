@@ -1,7 +1,7 @@
-import * as path from 'path';
 import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sns from 'aws-cdk-lib/aws-sns';
@@ -20,17 +20,26 @@ interface IngestionServiceStackProps extends cdk.StackProps {
 
 export class IngestionServiceStack extends cdk.Stack {
   public readonly service: ecs.FargateService;
+  public readonly repository: ecr.Repository;
 
   constructor(scope: Construct, id: string, props: IngestionServiceStackProps) {
     super(scope, id, props);
+
+    this.repository = new ecr.Repository(this, 'IngestionRepository', {
+      repositoryName: 'ecos-ingestion',
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      lifecycleRules: [{ maxImageCount: 10 }],
+    });
 
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'IngestionTaskDef', {
       cpu: 256,
       memoryLimitMiB: 512,
     });
 
+    this.repository.grantPull(taskDefinition.taskRole);
+
     taskDefinition.addContainer('ingestion', {
-      image: ecs.ContainerImage.fromAsset(path.join(__dirname, '../../services/ingestion')),
+      image: ecs.ContainerImage.fromEcrRepository(this.repository, 'latest'),
       portMappings: [{ containerPort: 8080 }],
       environment: {
         READINGS_TABLE_NAME: props.sensorReadingsTable.tableName,
@@ -70,6 +79,18 @@ export class IngestionServiceStack extends cdk.Stack {
       cloudMapOptions: {
         name: 'ingestion',
       },
+    });
+
+    new cdk.CfnOutput(this, 'IngestionRepositoryUri', {
+      value: this.repository.repositoryUri,
+    });
+
+    new cdk.CfnOutput(this, 'IngestionClusterName', {
+      value: props.cluster.clusterName,
+    });
+
+    new cdk.CfnOutput(this, 'IngestionServiceName', {
+      value: this.service.serviceName,
     });
   }
 }
