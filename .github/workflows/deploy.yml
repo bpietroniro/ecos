@@ -66,19 +66,19 @@ jobs:
       - name: Get ECR URI
         id: ecr
         run: |
-          echo "uri=$(aws ecr describe-repositories \
-            --repository-names ecos-ingestion \
-            --query 'repositories[0].repositoryUri' \
-            --output text)" >> "$GITHUB_OUTPUT"
+          URI=$(aws ecr describe-repositories --repository-names ecos-ingestion --query 'repositories[0].repositoryUri' --output text)
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
+        env:
+          IMAGE_URI: ${{ steps.ecr.outputs.uri }}
+          GIT_SHA: ${{ github.sha }}
         run: |
-          IMAGE_URI="${{ steps.ecr.outputs.uri }}"
           docker build \
-            -t "$IMAGE_URI:${{ github.sha }}" \
+            -t "$IMAGE_URI:$GIT_SHA" \
             -t "$IMAGE_URI:latest" \
             services/ingestion
-          docker push "$IMAGE_URI:${{ github.sha }}"
+          docker push "$IMAGE_URI:$GIT_SHA"
           docker push "$IMAGE_URI:latest"
 
   deploy-service:
