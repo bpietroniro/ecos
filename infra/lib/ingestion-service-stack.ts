@@ -3,12 +3,14 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import { Construct } from 'constructs';
 
 interface IngestionServiceStackProps extends cdk.StackProps {
   vpc: ec2.Vpc;
+  albSecurityGroup: ec2.SecurityGroup;
   ecsSecurityGroup: ec2.SecurityGroup;
   cluster: ecs.Cluster;
   ingestionLogGroup: logs.LogGroup;
@@ -21,6 +23,7 @@ interface IngestionServiceStackProps extends cdk.StackProps {
 
 export class IngestionServiceStack extends cdk.Stack {
   public readonly service: ecs.FargateService;
+  public readonly albListener: elbv2.ApplicationListener;
 
   constructor(scope: Construct, id: string, props: IngestionServiceStackProps) {
     super(scope, id, props);
@@ -74,6 +77,31 @@ export class IngestionServiceStack extends cdk.Stack {
         name: 'ingestion',
       },
       circuitBreaker: { rollback: false },
+    });
+
+    // Internal ALB — only reachable via the VPC Link, not the public internet
+    const alb = new elbv2.ApplicationLoadBalancer(this, 'IngestionAlb', {
+      vpc: props.vpc,
+      internetFacing: false,
+      securityGroup: props.albSecurityGroup,
+    });
+
+    const targetGroup = new elbv2.ApplicationTargetGroup(this, 'IngestionTargetGroup', {
+      vpc: props.vpc,
+      port: 8080,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targetType: elbv2.TargetType.IP,
+      targets: [this.service.loadBalancerTarget({ containerName: 'ingestion', containerPort: 8080 })],
+      healthCheck: {
+        path: '/healthz',
+        healthyHttpCodes: '200',
+      },
+    });
+
+    this.albListener = alb.addListener('HttpListener', {
+      port: 80,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      defaultTargetGroups: [targetGroup],
     });
 
     new cdk.CfnOutput(this, 'IngestionClusterName', {

@@ -2,15 +2,15 @@ import * as cdk from 'aws-cdk-lib';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import { Construct } from 'constructs';
 
 interface ApiStackProps extends cdk.StackProps {
   userPool: cognito.UserPool;
   userPoolClient: cognito.UserPoolClient;
   vpc: ec2.Vpc;
-  ecsSecurityGroup: ec2.SecurityGroup;
-  ingestionService: ecs.FargateService;
+  vpcLinkSecurityGroup: ec2.SecurityGroup;
+  albListener: elbv2.ApplicationListener;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -25,6 +25,7 @@ export class ApiStack extends cdk.Stack {
       name: 'ecos-api',
       protocolType: 'HTTP',
       corsConfiguration: {
+        // TODO: restrict to the frontend domain once it's known (e.g. CloudFront URL)
         allowOrigins: ['*'],
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         allowHeaders: ['Content-Type', 'Authorization'],
@@ -50,21 +51,21 @@ export class ApiStack extends cdk.Stack {
       autoDeploy: true,
     });
 
-    // VPC Link for private integration with ECS
+    // VPC Link for private integration — ENIs use the dedicated VPC Link SG
     const vpcLink = new apigatewayv2.CfnVpcLink(this, 'VpcLink', {
       name: 'ecos-vpc-link',
       subnetIds: props.vpc.publicSubnets.map(s => s.subnetId),
-      securityGroupIds: [props.ecsSecurityGroup.securityGroupId],
+      securityGroupIds: [props.vpcLinkSecurityGroup.securityGroupId],
     });
 
-    // Integration to ingestion service via Cloud Map service discovery
+    // Integration to ingestion service via internal ALB listener
     const ingestionIntegration = new apigatewayv2.CfnIntegration(this, 'IngestionIntegration', {
       apiId: this.api.ref,
       integrationType: 'HTTP_PROXY',
       integrationMethod: 'ANY',
       connectionType: 'VPC_LINK',
       connectionId: vpcLink.ref,
-      integrationUri: props.ingestionService.cloudMapService!.serviceArn,
+      integrationUri: props.albListener.listenerArn,
       payloadFormatVersion: '1.0',
     });
 

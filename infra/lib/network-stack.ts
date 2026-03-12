@@ -4,6 +4,8 @@ import { Construct } from 'constructs';
 
 export class NetworkStack extends cdk.Stack {
   public readonly vpc: ec2.Vpc;
+  public readonly vpcLinkSecurityGroup: ec2.SecurityGroup;
+  public readonly albSecurityGroup: ec2.SecurityGroup;
   public readonly ecsSecurityGroup: ec2.SecurityGroup;
   public readonly rdsSecurityGroup: ec2.SecurityGroup;
   public readonly cacheSecurityGroup: ec2.SecurityGroup;
@@ -24,16 +26,49 @@ export class NetworkStack extends cdk.Stack {
       ],
     });
 
-    // Security group for ECS Fargate services
+    // Security group for the API Gateway VPC Link ENIs
+    this.vpcLinkSecurityGroup = new ec2.SecurityGroup(this, 'VpcLinkSecurityGroup', {
+      vpc: this.vpc,
+      description: 'Security group for API Gateway VPC Link',
+      allowAllOutbound: false,
+    });
+
+    // Security group for the internal ALB — only accepts traffic from VPC Link
+    this.albSecurityGroup = new ec2.SecurityGroup(this, 'AlbSecurityGroup', {
+      vpc: this.vpc,
+      description: 'Security group for internal ALB',
+      allowAllOutbound: false,
+    });
+    this.albSecurityGroup.addIngressRule(
+      this.vpcLinkSecurityGroup,
+      ec2.Port.tcp(80),
+      'Allow inbound HTTP from VPC Link',
+    );
+
+    // Security group for ECS Fargate services — only accepts traffic from ALB
     this.ecsSecurityGroup = new ec2.SecurityGroup(this, 'EcsSecurityGroup', {
       vpc: this.vpc,
       description: 'Security group for ECS Fargate services',
       allowAllOutbound: true,
     });
     this.ecsSecurityGroup.addIngressRule(
-      ec2.Peer.anyIpv4(),
+      this.albSecurityGroup,
       ec2.Port.tcp(8080),
-      'Allow inbound HTTP to ECS services',
+      'Allow inbound from ALB',
+    );
+
+    // Explicit egress: VPC Link → ALB on port 80 only
+    this.vpcLinkSecurityGroup.addEgressRule(
+      this.albSecurityGroup,
+      ec2.Port.tcp(80),
+      'Allow outbound to ALB',
+    );
+
+    // Explicit egress: ALB → ECS on port 8080 only (listener + health checks)
+    this.albSecurityGroup.addEgressRule(
+      this.ecsSecurityGroup,
+      ec2.Port.tcp(8080),
+      'Allow outbound to ECS targets',
     );
 
     // Security group for RDS PostgreSQL (Phase 2)

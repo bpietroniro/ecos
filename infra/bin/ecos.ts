@@ -46,6 +46,7 @@ const ingestionEcrStack = new IngestionEcrStack(app, 'EcosIngestionEcr', { env }
 const ingestionServiceStack = new IngestionServiceStack(app, 'EcosIngestionService', {
   env,
   vpc: networkStack.vpc,
+  albSecurityGroup: networkStack.albSecurityGroup,
   ecsSecurityGroup: networkStack.ecsSecurityGroup,
   cluster: computeStack.cluster,
   ingestionLogGroup: computeStack.ingestionLogGroup,
@@ -62,8 +63,8 @@ const apiStack = new ApiStack(app, 'EcosApi', {
   userPool: authStack.userPool,
   userPoolClient: authStack.userPoolClient,
   vpc: networkStack.vpc,
-  ecsSecurityGroup: networkStack.ecsSecurityGroup,
-  ingestionService: ingestionServiceStack.service,
+  vpcLinkSecurityGroup: networkStack.vpcLinkSecurityGroup,
+  albListener: ingestionServiceStack.albListener,
 });
 
 app.synth();
