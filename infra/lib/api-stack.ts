@@ -2,7 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 interface ApiStackProps extends cdk.StackProps {
@@ -10,7 +10,6 @@ interface ApiStackProps extends cdk.StackProps {
   userPoolClient: cognito.UserPoolClient;
   vpc: ec2.Vpc;
   vpcLinkSecurityGroup: ec2.SecurityGroup;
-  albListener: elbv2.ApplicationListener;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -65,7 +64,7 @@ export class ApiStack extends cdk.Stack {
       integrationMethod: 'ANY',
       connectionType: 'VPC_LINK',
       connectionId: vpcLink.ref,
-      integrationUri: props.albListener.listenerArn,
+      integrationUri: ssm.StringParameter.valueForStringParameter(this, '/ecos/ingestion/alb-listener-arn'),
       payloadFormatVersion: '1.0',
     });
 

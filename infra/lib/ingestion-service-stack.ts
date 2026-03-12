@@ -6,6 +6,7 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 interface IngestionServiceStackProps extends cdk.StackProps {
@@ -23,7 +24,6 @@ interface IngestionServiceStackProps extends cdk.StackProps {
 
 export class IngestionServiceStack extends cdk.Stack {
   public readonly service: ecs.FargateService;
-  public readonly albListener: elbv2.ApplicationListener;
 
   constructor(scope: Construct, id: string, props: IngestionServiceStackProps) {
     super(scope, id, props);
@@ -98,10 +98,16 @@ export class IngestionServiceStack extends cdk.Stack {
       },
     });
 
-    this.albListener = alb.addListener('HttpListener', {
+    const albListener = alb.addListener('HttpListener', {
       port: 80,
       protocol: elbv2.ApplicationProtocol.HTTP,
       defaultTargetGroups: [targetGroup],
+    });
+
+    // Write listener ARN to SSM so EcosApi can reference it without a CFN export/import lock
+    new ssm.StringParameter(this, 'AlbListenerArnParam', {
+      parameterName: '/ecos/ingestion/alb-listener-arn',
+      stringValue: albListener.listenerArn,
     });
 
     new cdk.CfnOutput(this, 'IngestionClusterName', {

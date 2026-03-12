@@ -58,13 +58,14 @@ const ingestionServiceStack = new IngestionServiceStack(app, 'EcosIngestionServi
 });
 
 // Depends on: auth, network, ingestion service
+// Stack-level dependency (not CFN export/import) ensures deploy order without locking exports
 const apiStack = new ApiStack(app, 'EcosApi', {
   env,
   userPool: authStack.userPool,
   userPoolClient: authStack.userPoolClient,
   vpc: networkStack.vpc,
   vpcLinkSecurityGroup: networkStack.vpcLinkSecurityGroup,
-  albListener: ingestionServiceStack.albListener,
 });
+apiStack.addDependency(ingestionServiceStack);
 
 app.synth();
