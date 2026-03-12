@@ -114,12 +114,6 @@ jobs:
         run: npm run build
 
       - name: CDK deploy all stacks
-        run: npx cdk deploy --all --require-approval never --outputs-file cdk-outputs.json
-
-      - name: Force ECS redeployment
-        run: |
-          aws ecs update-service \
-            --cluster "$(jq -r '.EcosIngestionService.IngestionClusterName' cdk-outputs.json)" \
-            --service "$(jq -r '.EcosIngestionService.IngestionServiceName' cdk-outputs.json)" \
-            --force-new-deployment \
-            --region "${{ secrets.AWS_REGION }}"
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: npx cdk deploy --all --require-approval never --context imageTag=$IMAGE_TAG

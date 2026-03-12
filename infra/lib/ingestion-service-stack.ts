@@ -33,7 +33,7 @@ export class IngestionServiceStack extends cdk.Stack {
     props.repository.grantPull(taskDefinition.taskRole);
 
     taskDefinition.addContainer('ingestion', {
-      image: ecs.ContainerImage.fromEcrRepository(props.repository, 'latest'),
+      image: ecs.ContainerImage.fromEcrRepository(props.repository, this.node.tryGetContext('imageTag') ?? 'latest'),
       portMappings: [{ containerPort: 8080 }],
       environment: {
         READINGS_TABLE_NAME: props.sensorReadingsTable.tableName,
