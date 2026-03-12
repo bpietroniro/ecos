@@ -8,6 +8,8 @@
 3. Create Data Ingestion Service with REST API for readings and stations
 4. Set up DynamoDB tables for sensor data and station metadata
 5. Implement external API polling (NOAA, OpenWeatherMap)
+6. Seed DynamoDB stations table with initial NOAA station set; poller reads station list from DB rather than config, so stations can be managed via the API without redeploying
+7. Store OWM API key in AWS Secrets Manager; inject into ECS task via secrets (not plaintext env)
 
 ### Phase 2: Data Processing & Analysis
 1. Set up SQS/SNS message queues and event topics
@@ -16,12 +18,15 @@
 4. Set up RDS PostgreSQL for analysis results
 5. Add Redis/ElastiCache caching for the Analysis Service
 
+> **Design decision (revisit in Phase 2):** The current poller accumulates a local copy of NOAA/OWM data primarily to build historical depth for trend analysis and to enable station offline detection. Once the Analysis Service exists, reconsider whether ingestion should remain continuous or shift to query-driven — i.e., the Analysis Service fetches the relevant historical window from upstream APIs at analysis time and caches the normalized result. Query-driven removes the polling overhead and avoids storing data that upstream sources already keep, but requires the Analysis Service to own the fetch-and-normalize logic.
+
 ### Phase 3: Frontend & User Experience
 1. Create Next.js web dashboard
 2. Implement data visualization components (charts, maps)
 3. Add WebSocket support for real-time updates
 4. Build analysis job management UI
 5. Integrate Cognito authentication in the frontend
+6. Station proximity filtering: use coordinates from `GET /api/stations` to sort/filter by distance to user location client-side — no new backend endpoint needed
 
 ### Phase 4: Advanced Features
 1. Implement automated quality control in Data Ingestion Service
