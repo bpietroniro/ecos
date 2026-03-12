@@ -116,4 +116,10 @@ jobs:
       - name: CDK deploy all stacks
         env:
           IMAGE_TAG: ${{ github.sha }}
+          POLL_ENABLED: ${{ vars.POLL_ENABLED }}
+          POLL_INTERVAL: ${{ vars.POLL_INTERVAL }}
+          NOAA_ENABLED: ${{ vars.NOAA_ENABLED }}
+          NOAA_STATION_IDS: ${{ vars.NOAA_STATION_IDS }}
+          OWM_ENABLED: ${{ vars.OWM_ENABLED }}
+          OWM_LOCATIONS: ${{ vars.OWM_LOCATIONS }}
         run: npx cdk deploy --all --require-approval never --context imageTag=$IMAGE_TAG

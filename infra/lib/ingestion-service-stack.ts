@@ -46,6 +46,12 @@ export class IngestionServiceStack extends cdk.Stack {
         ALERT_EVENTS_TOPIC_ARN: props.alertEventsTopic.topicArn,
         AWS_REGION: this.region,
         PORT: '8080',
+        POLL_ENABLED:     process.env.POLL_ENABLED     ?? 'false',
+        POLL_INTERVAL:    process.env.POLL_INTERVAL    ?? '5m',
+        NOAA_ENABLED:     process.env.NOAA_ENABLED     ?? 'false',
+        NOAA_STATION_IDS: process.env.NOAA_STATION_IDS ?? '',
+        OWM_ENABLED:      process.env.OWM_ENABLED      ?? 'false',
+        OWM_LOCATIONS:    process.env.OWM_LOCATIONS    ?? '',
       },
       logging: ecs.LogDriver.awsLogs({
         logGroup: props.ingestionLogGroup,
