@@ -1,0 +1,1603 @@
+{
+  "info": {
+    "name": "ECOS Ingestion Service",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "Full-coverage test suite for the ECOS Data Ingestion Service.\n\nRun folders in order:\n1. Health Check\n2. Stations\n3. Readings\n4. Cleanup\n\nThe 'Create Station (Valid)' request sets {{stationId}} used by downstream tests.\nThe 'Create Reading (Valid)' request sets {{readingId}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "stationId", "value": "", "type": "string" },
+    { "key": "readingId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "GET /healthz",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+                  "pm.test('Body matches health schema', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('healthy');",
+                  "  pm.expect(json.service).to.eql('ingestion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Stations",
+      "item": [
+        {
+          "name": "Create Station (Valid — weather)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Weather Station Alpha\",\n  \"type\": \"weather\",\n  \"location\": {\n    \"latitude\": 40.7128,\n    \"longitude\": -74.0060,\n    \"elevation\": 10.0\n  },\n  \"instruments\": [\"thermometer\", \"barometer\", \"anemometer\"],\n  \"metadata\": { \"region\": \"northeast\", \"operator\": \"test\" }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Returns X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+                  "pm.test('Response has required fields', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.id).to.be.a('string').and.not.empty;",
+                  "  pm.expect(json.name).to.eql('Test Weather Station Alpha');",
+                  "  pm.expect(json.type).to.eql('weather');",
+                  "  pm.expect(json.status).to.eql('active');",
+                  "  pm.expect(json.location.latitude).to.eql(40.7128);",
+                  "  pm.expect(json.location.longitude).to.eql(-74.0060);",
+                  "  pm.expect(json.location.elevation).to.eql(10.0);",
+                  "  pm.expect(json.instruments).to.eql(['thermometer', 'barometer', 'anemometer']);",
+                  "  pm.expect(json.metadata.region).to.eql('northeast');",
+                  "  pm.collectionVariables.set('stationId', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (Valid — ocean)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ocean Buoy Beta\",\n  \"type\": \"ocean\",\n  \"location\": {\n    \"latitude\": -33.8688,\n    \"longitude\": 151.2093,\n    \"elevation\": 0.0\n  },\n  \"instruments\": [\"wave_sensor\", \"salinity_probe\"]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Type is ocean', () => pm.expect(pm.response.json().type).to.eql('ocean'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (Valid — satellite)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"GOES-16 Relay\",\n  \"type\": \"satellite\",\n  \"location\": {\n    \"latitude\": 0.0,\n    \"longitude\": -75.2,\n    \"elevation\": 35786000.0\n  },\n  \"instruments\": [\"radiometer\"]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Type is satellite', () => pm.expect(pm.response.json().type).to.eql('satellite'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — missing name)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"weather\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error is validation failed', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const details = json.details;",
+                  "  pm.expect(details).to.be.an('array').and.not.empty;",
+                  "  const nameError = details.find(d => d.field === 'name');",
+                  "  pm.expect(nameError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — missing type)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Incomplete Station\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error mentions type field', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const typeError = json.details.find(d => d.field === 'type');",
+                  "  pm.expect(typeError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — invalid type value)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Type Station\",\n  \"type\": \"ground_station\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on type field', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const typeError = json.details.find(d => d.field === 'type');",
+                  "  pm.expect(typeError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — latitude out of range high)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Lat Station\",\n  \"type\": \"weather\",\n  \"location\": { \"latitude\": 91.0, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on latitude', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const latError = json.details.find(d => d.field === 'location.latitude');",
+                  "  pm.expect(latError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — latitude out of range low)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Lat Station Low\",\n  \"type\": \"weather\",\n  \"location\": { \"latitude\": -91.0, \"longitude\": 0.0, \"elevation\": 0.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on latitude', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const latError = json.details.find(d => d.field === 'location.latitude');",
+                  "  pm.expect(latError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — longitude out of range high)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Lon Station\",\n  \"type\": \"weather\",\n  \"location\": { \"latitude\": 40.0, \"longitude\": 181.0, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on longitude', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const lonError = json.details.find(d => d.field === 'location.longitude');",
+                  "  pm.expect(lonError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — longitude out of range low)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Lon Station Low\",\n  \"type\": \"weather\",\n  \"location\": { \"latitude\": 40.0, \"longitude\": -181.0, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on longitude', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const lonError = json.details.find(d => d.field === 'location.longitude');",
+                  "  pm.expect(lonError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Station (400 — invalid JSON)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] },
+            "body": { "mode": "raw", "raw": "{not valid json" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error is invalid request body', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('invalid request body');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Stations",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/stations", "host": ["{{baseUrl}}"], "path": ["api", "stations"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+                  "pm.test('Response is an array', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array');",
+                  "});",
+                  "pm.test('Created station is present in list', () => {",
+                  "  const json = pm.response.json();",
+                  "  const stationId = pm.collectionVariables.get('stationId');",
+                  "  const found = json.find(s => s.id === stationId);",
+                  "  pm.expect(found).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (Valid — status to maintenance)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"maintenance\",\n  \"metadata\": { \"maintenance_reason\": \"annual calibration\" }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Station status updated to maintenance', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('maintenance');",
+                  "  pm.expect(json.id).to.eql(pm.collectionVariables.get('stationId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (Valid — restore to active with name change)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Weather Station Alpha (Updated)\",\n  \"status\": \"active\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Station name and status updated', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.status).to.eql('active');",
+                  "  pm.expect(json.name).to.eql('Test Weather Station Alpha (Updated)');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (Valid — all valid statuses: inactive)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"inactive\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status set to inactive', () => pm.expect(pm.response.json().status).to.eql('inactive'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (400 — invalid status value)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"broken\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on status field', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const statusError = json.details.find(d => d.field === 'status');",
+                  "  pm.expect(statusError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (400 — invalid type value)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"unknown_type\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on type field', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const typeError = json.details.find(d => d.field === 'type');",
+                  "  pm.expect(typeError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (400 — invalid latitude)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": { \"latitude\": 200.0, \"longitude\": 0.0, \"elevation\": 0.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on latitude', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const latError = json.details.find(d => d.field === 'location.latitude');",
+                  "  pm.expect(latError).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (400 — invalid JSON)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            },
+            "body": { "mode": "raw", "raw": "{bad json" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error is invalid request body', () => pm.expect(pm.response.json().error).to.eql('invalid request body'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Station (404 — station not found)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "00000000-0000-0000-0000-000000000000"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"active\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error is station not found', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('station not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Readings",
+      "item": [
+        {
+          "name": "Create Reading (Valid — temperature)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:00:00Z\",\n  \"readingType\": \"temperature\",\n  \"value\": 22.5,\n  \"unit\": \"celsius\",\n  \"location\": {\n    \"latitude\": 40.7128,\n    \"longitude\": -74.0060,\n    \"elevation\": 10.0\n  },\n  \"metadata\": { \"sensor_id\": \"THM-001\" }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Returns X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+                  "pm.test('Response has required fields', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.id).to.be.a('string').and.not.empty;",
+                  "  pm.expect(json.stationId).to.eql(pm.collectionVariables.get('stationId'));",
+                  "  pm.expect(json.readingType).to.eql('temperature');",
+                  "  pm.expect(json.value).to.eql(22.5);",
+                  "  pm.expect(json.unit).to.eql('celsius');",
+                  "  pm.expect(json.quality).to.exist;",
+                  "  pm.expect(json.quality.status).to.eql('raw');",
+                  "  pm.expect(json.location.latitude).to.eql(40.7128);",
+                  "  pm.collectionVariables.set('readingId', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — humidity)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:05:00Z\",\n  \"readingType\": \"humidity\",\n  \"value\": 65.2,\n  \"unit\": \"percent\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Reading type is humidity', () => pm.expect(pm.response.json().readingType).to.eql('humidity'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — pressure)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:10:00Z\",\n  \"readingType\": \"pressure\",\n  \"value\": 1013.25,\n  \"unit\": \"hPa\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Reading type is pressure', () => pm.expect(pm.response.json().readingType).to.eql('pressure'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — wind_speed)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:15:00Z\",\n  \"readingType\": \"wind_speed\",\n  \"value\": 12.3,\n  \"unit\": \"m/s\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — wind_direction)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:20:00Z\",\n  \"readingType\": \"wind_direction\",\n  \"value\": 270.0,\n  \"unit\": \"degrees\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — precipitation)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:25:00Z\",\n  \"readingType\": \"precipitation\",\n  \"value\": 2.4,\n  \"unit\": \"mm\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — solar_radiation)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:30:00Z\",\n  \"readingType\": \"solar_radiation\",\n  \"value\": 850.0,\n  \"unit\": \"W/m2\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — sea_temperature)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:35:00Z\",\n  \"readingType\": \"sea_temperature\",\n  \"value\": 18.7,\n  \"unit\": \"celsius\",\n  \"location\": { \"latitude\": -33.8688, \"longitude\": 151.2093, \"elevation\": 0.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — salinity)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:40:00Z\",\n  \"readingType\": \"salinity\",\n  \"value\": 35.1,\n  \"unit\": \"ppt\",\n  \"location\": { \"latitude\": -33.8688, \"longitude\": 151.2093, \"elevation\": 0.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (Valid — wave_height)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:45:00Z\",\n  \"readingType\": \"wave_height\",\n  \"value\": 1.8,\n  \"unit\": \"meters\",\n  \"location\": { \"latitude\": -33.8688, \"longitude\": 151.2093, \"elevation\": 0.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (400 — missing stationId)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timestamp\": \"2026-03-11T12:00:00Z\",\n  \"readingType\": \"temperature\",\n  \"value\": 22.5,\n  \"unit\": \"celsius\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on stationId', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const err = json.details.find(d => d.field === 'stationId');",
+                  "  pm.expect(err).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (400 — invalid readingType)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:00:00Z\",\n  \"readingType\": \"uv_index\",\n  \"value\": 5.0,\n  \"unit\": \"index\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on readingType', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const err = json.details.find(d => d.field === 'readingType');",
+                  "  pm.expect(err).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (400 — invalid timestamp format)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"March 11 2026\",\n  \"readingType\": \"temperature\",\n  \"value\": 22.5,\n  \"unit\": \"celsius\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on timestamp', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const err = json.details.find(d => d.field === 'timestamp');",
+                  "  pm.expect(err).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (400 — missing unit)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:00:00Z\",\n  \"readingType\": \"temperature\",\n  \"value\": 22.5,\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on unit', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const err = json.details.find(d => d.field === 'unit');",
+                  "  pm.expect(err).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (400 — latitude out of range)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:00:00Z\",\n  \"readingType\": \"temperature\",\n  \"value\": 22.5,\n  \"unit\": \"celsius\",\n  \"location\": { \"latitude\": -100.0, \"longitude\": -74.0060, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on latitude', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const err = json.details.find(d => d.field === 'location.latitude');",
+                  "  pm.expect(err).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (400 — longitude out of range)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"timestamp\": \"2026-03-11T12:00:00Z\",\n  \"readingType\": \"temperature\",\n  \"value\": 22.5,\n  \"unit\": \"celsius\",\n  \"location\": { \"latitude\": 40.7128, \"longitude\": -200.0, \"elevation\": 10.0 }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Validation error on longitude', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.error).to.eql('validation failed');",
+                  "  const err = json.details.find(d => d.field === 'location.longitude');",
+                  "  pm.expect(err).to.exist;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Reading (400 — invalid JSON)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] },
+            "body": { "mode": "raw", "raw": "{not valid json" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error is invalid request body', () => pm.expect(pm.response.json().error).to.eql('invalid request body'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Readings (no filters)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/readings", "host": ["{{baseUrl}}"], "path": ["api", "readings"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+                  "pm.test('Response is an array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('Array has at least one reading', () => pm.expect(pm.response.json().length).to.be.greaterThan(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Readings (filter by stationId)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings?stationId={{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings"],
+              "query": [{ "key": "stationId", "value": "{{stationId}}" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All readings belong to the station', () => {",
+                  "  const stationId = pm.collectionVariables.get('stationId');",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array').and.not.empty;",
+                  "  json.forEach(r => pm.expect(r.stationId).to.eql(stationId));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Readings (filter by readingType=temperature)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings?readingType=temperature",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings"],
+              "query": [{ "key": "readingType", "value": "temperature" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All readings are temperature type', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array').and.not.empty;",
+                  "  json.forEach(r => pm.expect(r.readingType).to.eql('temperature'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Readings (filter by time range)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings?startTime=2026-03-11T11:00:00Z&endTime=2026-03-11T13:00:00Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings"],
+              "query": [
+                { "key": "startTime", "value": "2026-03-11T11:00:00Z" },
+                { "key": "endTime", "value": "2026-03-11T13:00:00Z" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Readings (filter by limit)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings?limit=2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings"],
+              "query": [{ "key": "limit", "value": "2" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns at most 2 readings', () => {",
+                  "  pm.expect(pm.response.json().length).to.be.at.most(2);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Readings (filter by stationId + readingType)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings?stationId={{stationId}}&readingType=humidity",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings"],
+              "query": [
+                { "key": "stationId", "value": "{{stationId}}" },
+                { "key": "readingType", "value": "humidity" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All results match both filters', () => {",
+                  "  const stationId = pm.collectionVariables.get('stationId');",
+                  "  const json = pm.response.json();",
+                  "  json.forEach(r => {",
+                  "    pm.expect(r.stationId).to.eql(stationId);",
+                  "    pm.expect(r.readingType).to.eql('humidity');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Readings (400 — non-integer limit)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings?limit=abc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings"],
+              "query": [{ "key": "limit", "value": "abc" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Response has error field', () => pm.expect(pm.response.json().error).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Readings by Station",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings/station/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings", "station", "{{stationId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+                  "pm.test('Response is an array with readings', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.be.an('array').and.not.empty;",
+                  "});",
+                  "pm.test('All readings belong to the station', () => {",
+                  "  const stationId = pm.collectionVariables.get('stationId');",
+                  "  pm.response.json().forEach(r => pm.expect(r.stationId).to.eql(stationId));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Readings by Station (with readingType filter)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings/station/{{stationId}}?readingType=temperature",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings", "station", "{{stationId}}"],
+              "query": [{ "key": "readingType", "value": "temperature" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All results are temperature readings for the station', () => {",
+                  "  const stationId = pm.collectionVariables.get('stationId');",
+                  "  pm.response.json().forEach(r => {",
+                  "    pm.expect(r.stationId).to.eql(stationId);",
+                  "    pm.expect(r.readingType).to.eql('temperature');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Readings by Station (with limit + time range)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings/station/{{stationId}}?limit=3&startTime=2026-03-11T11:00:00Z&endTime=2026-03-11T13:00:00Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings", "station", "{{stationId}}"],
+              "query": [
+                { "key": "limit", "value": "3" },
+                { "key": "startTime", "value": "2026-03-11T11:00:00Z" },
+                { "key": "endTime", "value": "2026-03-11T13:00:00Z" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns at most 3 readings', () => pm.expect(pm.response.json().length).to.be.at.most(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Readings by Station (400 — invalid limit)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/readings/station/{{stationId}}?limit=notanumber",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "readings", "station", "{{stationId}}"],
+              "query": [{ "key": "limit", "value": "notanumber" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Response has error field', () => pm.expect(pm.response.json().error).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Batch Create Readings (201 — all succeed)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings/batch", "host": ["{{baseUrl}}"], "path": ["api", "readings", "batch"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"readings\": [\n    {\n      \"stationId\": \"{{stationId}}\",\n      \"timestamp\": \"2026-03-11T14:00:00Z\",\n      \"readingType\": \"temperature\",\n      \"value\": 23.1,\n      \"unit\": \"celsius\",\n      \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n    },\n    {\n      \"stationId\": \"{{stationId}}\",\n      \"timestamp\": \"2026-03-11T14:05:00Z\",\n      \"readingType\": \"humidity\",\n      \"value\": 70.0,\n      \"unit\": \"percent\",\n      \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n    },\n    {\n      \"stationId\": \"{{stationId}}\",\n      \"timestamp\": \"2026-03-11T14:10:00Z\",\n      \"readingType\": \"pressure\",\n      \"value\": 1012.5,\n      \"unit\": \"hPa\",\n      \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Returns X-Request-ID header', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty);",
+                  "pm.test('Batch response structure is correct', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.succeeded).to.eql(3);",
+                  "  pm.expect(json.failed).to.eql(0);",
+                  "  pm.expect(json.readings).to.be.an('array').with.lengthOf(3);",
+                  "  pm.expect(json.errors).to.be.an('array').with.lengthOf(0);",
+                  "  json.readings.forEach(r => pm.expect(r.id).to.be.a('string').and.not.empty);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Batch Create Readings (207 — partial success)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings/batch", "host": ["{{baseUrl}}"], "path": ["api", "readings", "batch"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"readings\": [\n    {\n      \"stationId\": \"{{stationId}}\",\n      \"timestamp\": \"2026-03-11T15:00:00Z\",\n      \"readingType\": \"temperature\",\n      \"value\": 21.0,\n      \"unit\": \"celsius\",\n      \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n    },\n    {\n      \"stationId\": \"\",\n      \"timestamp\": \"2026-03-11T15:05:00Z\",\n      \"readingType\": \"temperature\",\n      \"value\": 21.5,\n      \"unit\": \"celsius\",\n      \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n    },\n    {\n      \"stationId\": \"{{stationId}}\",\n      \"timestamp\": \"2026-03-11T15:10:00Z\",\n      \"readingType\": \"humidity\",\n      \"value\": 68.0,\n      \"unit\": \"percent\",\n      \"location\": { \"latitude\": 40.7128, \"longitude\": -74.0060, \"elevation\": 10.0 }\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 207', () => pm.response.to.have.status(207));",
+                  "pm.test('Partial success response structure', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.succeeded).to.eql(2);",
+                  "  pm.expect(json.failed).to.eql(1);",
+                  "  pm.expect(json.readings).to.be.an('array').with.lengthOf(2);",
+                  "  pm.expect(json.errors).to.be.an('array').with.lengthOf(1);",
+                  "  pm.expect(json.errors[0].index).to.eql(1);",
+                  "  pm.expect(json.errors[0].message).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Batch Create Readings (400 — all invalid)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings/batch", "host": ["{{baseUrl}}"], "path": ["api", "readings", "batch"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"readings\": [\n    {\n      \"stationId\": \"\",\n      \"timestamp\": \"not-a-timestamp\",\n      \"readingType\": \"unknown_type\",\n      \"value\": 0,\n      \"unit\": \"\",\n      \"location\": { \"latitude\": 999, \"longitude\": 999, \"elevation\": 0 }\n    },\n    {\n      \"timestamp\": \"2026-03-11T15:00:00Z\",\n      \"readingType\": \"temperature\",\n      \"value\": 20.0,\n      \"unit\": \"celsius\",\n      \"location\": { \"latitude\": 40.0, \"longitude\": -74.0, \"elevation\": 0 }\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Response has error field', () => pm.expect(pm.response.json().error).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Batch Create Readings (400 — empty readings array)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings/batch", "host": ["{{baseUrl}}"], "path": ["api", "readings", "batch"] },
+            "body": { "mode": "raw", "raw": "{\n  \"readings\": []\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Response has error field', () => pm.expect(pm.response.json().error).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Batch Create Readings (400 — invalid JSON)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/readings/batch", "host": ["{{baseUrl}}"], "path": ["api", "readings", "batch"] },
+            "body": { "mode": "raw", "raw": "{bad json" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error is invalid request body', () => pm.expect(pm.response.json().error).to.eql('invalid request body'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Middleware",
+      "item": [
+        {
+          "name": "Request ID — forwarded from client",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "X-Request-ID", "value": "my-custom-request-id-12345" }],
+            "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('X-Request-ID is echoed back from request', () => {",
+                  "  pm.expect(pm.response.headers.get('X-Request-ID')).to.eql('my-custom-request-id-12345');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request ID — auto-generated when absent",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('X-Request-ID is present and UUID-like', () => {",
+                  "  const reqId = pm.response.headers.get('X-Request-ID');",
+                  "  pm.expect(reqId).to.be.a('string').and.not.empty;",
+                  "  pm.expect(reqId).to.match(/^[0-9a-f-]{36}$/);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request ID — unique per request",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/healthz", "host": ["{{baseUrl}}"], "path": ["healthz"] }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('_prevRequestId', pm.collectionVariables.get('_lastRequestId') || '');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('X-Request-ID differs from previous request', () => {",
+                  "  const current = pm.response.headers.get('X-Request-ID');",
+                  "  const previous = pm.collectionVariables.get('_prevRequestId');",
+                  "  pm.expect(current).to.be.a('string').and.not.empty;",
+                  "  if (previous) { pm.expect(current).to.not.eql(previous); }",
+                  "  pm.collectionVariables.set('_lastRequestId', current);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete Station (204 — valid)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));",
+                  "pm.test('Response body is empty', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Station (404 — already deleted / not found)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/{{stationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "{{stationId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error is station not found', () => {",
+                  "  pm.expect(pm.response.json().error).to.eql('station not found');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Station (404 — nonexistent ID)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/stations/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "stations", "00000000-0000-0000-0000-000000000000"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error is station not found', () => pm.expect(pm.response.json().error).to.eql('station not found'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
